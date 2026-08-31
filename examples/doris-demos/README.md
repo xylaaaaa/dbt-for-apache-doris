@@ -15,6 +15,16 @@ under `examples/`. They contain implementation files used by the notebooks and
 the runners. Users can open `README.md` and `notebooks/`; the implementation
 directories are not part of the JupyterLab entry view.
 
+## Source and attribution
+
+These examples are adapted from selected scenarios in [Snowflake Labs'
+`data-eng-bench`](https://github.com/Snowflake-Labs/data-eng-bench), released
+under the Apache License 2.0. We changed the project structure, SQL, profiles,
+fixtures, verifiers, and notebooks for Apache Doris and
+`dbt-for-apache-doris`. The examples are maintained independently and are not
+officially affiliated with or endorsed by Snowflake. The repository-level
+`NOTICE` file contains the complete attribution.
+
 ## What the examples show
 
 Every demo follows the same data path:
