@@ -228,6 +228,15 @@ class TestSingleStatementDDL:
             f"{macro} must return SQL, not execute statements of its own: " f"{runner.statements}"
         )
 
+    @pytest.mark.parametrize("macro", CREATE_TABLE_MACROS)
+    def test_create_table_as_keeps_external_catalog(self, macro):
+        runner = table_runner()
+        relation = FakeRelation(database="hive_catalog", schema="ods")
+
+        sql = runner.sql(macro, False, relation, "select 1 as id")
+
+        assert "create table `hive_catalog`.`ods`.`my_model`" in sql
+
     def test_unique_table_defaults_to_merge_on_write(self):
         sql = table_runner().sql(
             "doris__create_unique_table_as",
@@ -270,6 +279,33 @@ class TestSingleStatementDDL:
             "replication_num": "1",
             "enable_unique_key_merge_on_write": "false",
         }
+
+
+class TestMetadataMacros:
+    def test_get_columns_escapes_identifier_literal(self):
+        class Result:
+            table = []
+
+        runner = MacroRunner(
+            "adapters/columns.sql",
+            context={
+                "adapter": FakeAdapter(),
+                "api": type("Api", (), {"Column": object}),
+                "load_result": lambda name: Result(),
+            },
+        )
+        runner.render(
+            "doris__get_columns_in_relation",
+            FakeRelation(
+                database="hive_catalog",
+                schema="ods\\archive",
+                identifier="orders'2026\\daily",
+            ),
+        )
+
+        assert len(runner.statements) == 1
+        sql = runner.statements[0].sql
+        assert "table_name = 'orders\\'2026\\\\daily'" in sql
 
     def test_incremental_staging_preserves_replication_allocation(self):
         sql = table_runner(

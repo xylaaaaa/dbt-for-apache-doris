@@ -16,15 +16,26 @@
 -- under the License.
 
 {% macro doris__get_columns_in_relation(relation) -%}
+    {% set catalog = relation.database or 'internal' %}
+    {% set identifier = (
+        relation.identifier
+        | replace("\\", "\\\\")
+        | replace("'", "\\'")
+    ) %}
+    {% set information_schema_name = (
+        adapter.quote(catalog) ~ '.information_schema'
+        if relation.database else 'information_schema'
+    ) %}
     {% call statement('get_columns_in_relation', fetch_result=True) %}
         select column_name  as `column`,
                column_type  as `dtype`,
                character_maximum_length as char_size,
                numeric_precision,
                numeric_scale
-        from information_schema.columns
-        where table_schema = '{{ relation.schema }}'
-          and table_name = '{{ relation.identifier }}'
+        from {{ information_schema_name }}.columns
+        where upper(table_catalog) = upper('{{ catalog | replace("'", "''") }}')
+          and table_schema = '{{ relation.schema | replace("\\", "\\\\") | replace("'", "\\'") }}'
+          and table_name = '{{ identifier }}'
         order by ordinal_position
     {% endcall %}
     {% set table = load_result('get_columns_in_relation').table %}

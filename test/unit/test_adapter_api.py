@@ -74,7 +74,7 @@ def test_quoted_contract_column_renders_without_an_adapter_instance():
     )
 
 
-def test_catalog_preserves_empty_doris_database_for_manifest_matching():
+def test_catalog_matches_internal_and_external_namespaces():
     column_names = [
         "table_database",
         "table_schema",
@@ -88,18 +88,21 @@ def test_catalog_preserves_empty_doris_database_for_manifest_matching():
         "column_comment",
     ]
     table = table_from_rows(
-        [["", "analytics", "orders", "table", "orders docs", None, "id", 1, "int", "id docs"]],
+        [
+            [None, "analytics", "orders", "table", "orders docs", None, "id", 1, "int", "id docs"],
+            ["hive_catalog", "ods", "events", "table", None, None, "id", 1, "int", None],
+        ],
         column_names,
         text_only_columns=[name for name in column_names if name != "column_index"],
     )
 
     filtered = DorisAdapter._catalog_filter_table(
         table,
-        frozenset({("", "analytics")}),
+        frozenset({("", "analytics"), ("hive_catalog", "ods")}),
     )
 
-    assert len(filtered.rows) == 1
-    assert filtered.rows[0]["table_database"] == ""
+    assert len(filtered.rows) == 2
+    assert [row["table_database"] for row in filtered.rows] == [None, "hive_catalog"]
 
 
 def test_schema_change_waits_until_the_new_job_finishes(monkeypatch):

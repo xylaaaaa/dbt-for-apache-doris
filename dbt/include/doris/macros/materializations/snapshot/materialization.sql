@@ -26,6 +26,9 @@
   {% set strategy_name = config.get('strategy') %}
   {% set unique_key = config.get('unique_key') %}
   {% set grant_config = config.get('grants') %}
+  {% if 'database' not in model %}
+    {% do model.update({'database': none}) %}
+  {% endif %}
 
   {% set target_relation_exists, target_relation = get_or_create_relation(
       database=model.database,

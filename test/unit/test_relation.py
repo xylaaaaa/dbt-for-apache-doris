@@ -30,28 +30,28 @@ from dbt.adapters.contracts.relation import RelationType
 from dbt.adapters.doris.relation import DorisRelation
 
 
-@pytest.mark.parametrize(
-    ("database", "schema", "expected_schema"),
-    [
-        ("", "analytics", "analytics"),
-        (None, "analytics", "analytics"),
-        ("analytics", "analytics", "analytics"),
-        ("finance", "analytics", "finance"),
-    ],
-)
-def test_relation_normalizes_doris_database_to_one_cache_namespace(
-    database,
-    schema,
-    expected_schema,
-):
+@pytest.mark.parametrize("database", ["", None])
+def test_relation_normalizes_empty_catalog(database):
     relation = DorisRelation.create(
         database=database,
-        schema=schema,
+        schema="analytics",
         identifier="orders",
     )
 
     assert relation.database is None
-    assert relation.schema == expected_schema
+    assert relation.schema == "analytics"
+
+
+def test_relation_preserves_three_part_namespace():
+    relation = DorisRelation.create(
+        database="hive_catalog",
+        schema="analytics",
+        identifier="orders",
+    )
+
+    assert relation.database == "hive_catalog"
+    assert relation.schema == "analytics"
+    assert relation.render() == "`hive_catalog`.`analytics`.`orders`"
 
 
 def test_materialized_view_to_view_replacement_updates_one_cache_key():

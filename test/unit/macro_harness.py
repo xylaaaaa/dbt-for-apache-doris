@@ -125,7 +125,14 @@ class FakeValidation:
 class FakeRelation:
     """Minimal Relation: enough for the string interpolation the macros do."""
 
-    def __init__(self, schema="dbt_test", identifier="my_model", relation_type="table"):
+    def __init__(
+        self,
+        database=None,
+        schema="dbt_test",
+        identifier="my_model",
+        relation_type="table",
+    ):
+        self.database = database
         self.schema = schema
         self.identifier = identifier
         self.table = identifier
@@ -141,6 +148,7 @@ class FakeRelation:
     def incorporate(self, **kwargs):
         path = kwargs.get("path") or {}
         return FakeRelation(
+            database=path.get("database", self.database),
             schema=path.get("schema", self.schema),
             identifier=path.get("identifier", self.identifier),
             relation_type=kwargs.get("type", self.type),
@@ -150,7 +158,8 @@ class FakeRelation:
         return str(self)
 
     def __str__(self):
-        return f"`{self.schema}`.`{self.identifier}`"
+        parts = [self.database, self.schema, self.identifier]
+        return ".".join(f"`{part}`" for part in parts if part)
 
 
 class FakeColumn:

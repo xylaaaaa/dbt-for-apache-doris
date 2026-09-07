@@ -32,7 +32,7 @@
     sql_is_prepared=false
 ) -%}
     {% set sql_header = config.get('sql_header', none) %}
-    {% set table = relation.include(database=False) %}
+    {% set table = relation %}
     {% set select_sql = (
         sql if sql_is_prepared else doris__table_colume_type(sql)
     ) %}
@@ -54,7 +54,7 @@
     sql_is_prepared=false
 ) -%}
     {% set sql_header = config.get('sql_header', none) %}
-    {% set table = relation.include(database=False) %}
+    {% set table = relation %}
     {% set select_sql = (
         sql if sql_is_prepared else doris__table_colume_type(sql)
     ) %}
@@ -128,7 +128,7 @@
 
     {%- set source_columns = adapter.get_columns_in_relation(source_relation) -%}
     {% call statement('create_documented_table') %}
-        create table {{ relation.include(database=False) }} (
+        create table {{ relation }} (
         {%- for column in source_columns %}
             `{{ column.name | replace("`", "``") }}` {{ column.data_type }}
             {%- set description = doris__documented_column_description(column.name) -%}
@@ -205,7 +205,7 @@
 {% macro doris__create_incremental_staging_table(relation, source_sql) -%}
     {% set helper_properties = doris__physical_helper_table_properties() %}
 
-    create table {{ relation.include(database=False) }}
+    create table {{ relation }}
     distributed by random buckets auto
     properties (
         {% for key, value in helper_properties.items() %}
@@ -229,7 +229,7 @@
 {% macro doris__create_view_snapshot_table(relation, source_relation) -%}
     {% set helper_properties = doris__physical_helper_table_properties() %}
 
-    create table {{ relation.include(database=False) }}
+    create table {{ relation }}
     distributed by random buckets auto
     properties (
         {% for key, value in helper_properties.items() %}

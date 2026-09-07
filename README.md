@@ -43,16 +43,16 @@ platform boundaries are described alongside each capability.
 
 | Capability | Status | Current support and boundaries |
 | --- | --- | --- |
-| Sources and freshness | ✅ Supported | `loaded_at_field`, filter, and `loaded_at_query`; cross-database uses database-as-schema, not External Catalog |
+| Sources and freshness | ✅ Supported | `loaded_at_field`, filter, and `loaded_at_query`; sources may use Internal or External Catalog relations |
 | Data tests | ✅ Supported | Singular, generic, ephemeral, and `store_failures` paths |
 | dbt Unit tests | ✅ Supported | Inline-row and CSV fixtures, case-insensitive columns, invalid-input validation, quoted reserved words, Doris-adapted data-type fixtures, and non-truncating VARCHAR fixtures |
 | Model contracts | ✅ Supported | Column names/types for Table, View, and Incremental; not database PK/NOT NULL constraints |
 | Persisted docs | ✅ Supported | Relation and column comments for Table, View, Incremental, Snapshot, Seed, and Async MV; updating View comments or comment text containing both quote delimiters may require recreation/full refresh |
 | Grants | ✅ Supported | Reconciles supported Doris table privileges for `user` and `user@host` principals on Table, View, Incremental, Seed, Snapshot, and Async MV; role principals are not reconciled |
 | Hooks | ✅ Supported | Pre-hooks and post-hooks across adapter materializations; Doris does not provide transactional rollback for hook side effects |
-| Internal metadata and dbt docs catalog | ✅ Supported | Relation discovery and docs catalog for Doris databases, tables, views, columns, comments, and Async MVs |
-| Cross-database sources | ✅ Supported | Sources in other Doris databases, including database-only source definitions; External Catalog three-part names are not supported |
-| Advanced metadata / External Catalog | ❌ Not supported | Catalogs V2, metadata-by-relation, single-relation catalog, last-modified metadata, and External Catalog three-part namespaces are not declared |
+| Metadata and dbt docs catalog | ✅ Supported | Relation and column discovery for Internal and External Catalogs; Internal Catalog Async MV detection |
+| Cross-database and cross-catalog sources | ✅ Supported | Two-part `database.table` within Internal Catalog and three-part `catalog.database.table` for configured External Catalogs |
+| Advanced metadata APIs | ❌ Not supported | Catalogs V2, metadata-by-relation, single-relation catalog, and last-modified metadata are not declared |
 
 ## Compatibility
 
@@ -105,7 +105,8 @@ doris_demo:
       threads: 4
 ```
 
-On Doris, `schema` is a database; an optional `database` must match it.
+On Doris, dbt `schema` is a Doris Database. Omit dbt `database` for the
+Internal Catalog.
 
 Create a new `doris-demo` directory with a `models` subdirectory, then add:
 
@@ -144,6 +145,27 @@ dbt build
 
 On Windows PowerShell, set the password with
 `$env:DORIS_PASSWORD = '<your-password>'`, then run the same dbt commands.
+
+### External Catalog sources
+
+dbt relation fields map to Doris as `database.schema.identifier` →
+`catalog.database.table`. Set `database` to an existing Doris Catalog and
+`schema` to the Database inside that Catalog:
+
+```yaml
+sources:
+  - name: lakehouse
+    database: hive_catalog
+    schema: ods
+    tables:
+      - name: orders
+```
+
+`{{ source('lakehouse', 'orders') }}` renders as
+`` `hive_catalog`.`ods`.`orders` ``. The adapter discovers its tables and
+columns from the selected Catalog and includes them in `dbt docs generate`.
+The External Catalog must already exist in Doris. DDL and write support depend
+on the corresponding Doris Catalog connector.
 
 ## End-to-end examples
 
@@ -198,7 +220,7 @@ wait timeout does not cancel a submitted Doris task.
 
 - Aggregate Key table modeling and secondary-index configuration are not
   supported.
-- A complete External Catalog namespace is unsupported.
+- Catalogs V2 and connector-specific External Catalog write guarantees are not supported.
 - SSL configuration, timeout/retry, multi-FE failover, server-side cancellation,
   and complete query telemetry are not implemented.
 - Some Table/View/MV type changes have a short canonical-name availability
