@@ -228,6 +228,15 @@ class TestSingleStatementDDL:
             f"{macro} must return SQL, not execute statements of its own: " f"{runner.statements}"
         )
 
+    @pytest.mark.parametrize("macro", CREATE_TABLE_MACROS)
+    def test_create_table_as_keeps_external_catalog(self, macro):
+        runner = table_runner()
+        relation = FakeRelation(database="hive_catalog", schema="ods")
+
+        sql = runner.sql(macro, False, relation, "select 1 as id")
+
+        assert "create table `hive_catalog`.`ods`.`my_model`" in sql
+
     def test_unique_table_defaults_to_merge_on_write(self):
         sql = table_runner().sql(
             "doris__create_unique_table_as",

@@ -15,6 +15,16 @@
 -- specific language governing permissions and limitations
 -- under the License.
 
+{% macro doris__generate_database_name(custom_database_name=none, node=none) -%}
+  {# Return None directly so an omitted target database does not become the
+     literal catalog name "None" in dbt node metadata. #}
+  {% if custom_database_name is none %}
+    {{ return(target.database) }}
+  {% else %}
+    {{ return(custom_database_name) }}
+  {% endif %}
+{%- endmacro %}
+
 {% macro doris__engine() -%}
     {% set label = 'ENGINE' %}
     {% set engine = config.get('engine', 'OLAP') %}
@@ -244,7 +254,7 @@
   {% endif %}
 
   {%- set new_relation = api.Relation.create(
-      database=none,
+      database=database,
       schema=schema,
       identifier=identifier,
       type=type
@@ -266,4 +276,8 @@
        Adding them means exposing an `indexes` config and building the clauses at
        CREATE TABLE time, since Doris declares indexes in the table definition
        rather than through a separate CREATE INDEX statement. --#}
+{%- endmacro %}
+
+{% macro catalog_source(catalog, database, table) -%}
+  {{ adapter.quote(catalog) }}.{{ adapter.quote(database) }}.{{ adapter.quote(table) }}
 {%- endmacro %}

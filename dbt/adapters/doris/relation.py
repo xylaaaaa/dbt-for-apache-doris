@@ -22,19 +22,18 @@ from dataclasses import dataclass, field
 from datetime import timezone
 
 from dbt.adapters.base.relation import BaseRelation, EventTimeFilter, Policy
-from dbt.exceptions import DbtRuntimeError
 
 
 @dataclass
 class DorisQuotePolicy(Policy):
-    database: bool = False
+    database: bool = True
     schema: bool = True
     identifier: bool = True
 
 
 @dataclass
 class DorisIncludePolicy(Policy):
-    database: bool = False
+    database: bool = True
     schema: bool = True
     identifier: bool = True
 
@@ -46,22 +45,15 @@ class DorisRelation(BaseRelation):
     quote_character: str = "`"
 
     def __post_init__(self):
-        # In Doris, database and schema are the same concept — there is only
-        # one namespace level.  When a source or model sets "database" to a
-        # value that differs from "schema", treat database AS the schema so
-        # that cross-database references like {{ source(...) }} work correctly.
-        if self.database and self.database != self.schema:
-            self.path.schema = self.database
-        # Normalize dbt's empty-string model database and metadata's NULL
-        # database to one cache namespace.
-        self.path.database = None
+        if self.database in ("", "None"):
+            self.path.database = None
 
-    def render(self):
-        if self.include_policy.database and self.include_policy.schema:
-            raise DbtRuntimeError(
-                "Got a Doris relation with schema and database set to include, but only one can be set"
-            )
-        return super().render()
+    def quoted(self, identifier):
+        return "{}{}{}".format(
+            self.quote_character,
+            str(identifier).replace(self.quote_character, self.quote_character * 2),
+            self.quote_character,
+        )
 
     @staticmethod
     def _format_event_time_boundary(boundary):

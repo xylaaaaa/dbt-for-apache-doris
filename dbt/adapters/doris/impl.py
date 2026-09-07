@@ -213,7 +213,7 @@ class DorisAdapter(SQLAdapter):
                 )
 
     def _latest_schema_change_job(self, relation: BaseRelation):
-        schema = self.quote(relation.schema)
+        schema = relation.without_identifier().render()
         table_name = relation.identifier.replace("'", "''")
         _, table = self.execute(
             "show alter table column from {} "
@@ -348,7 +348,7 @@ class DorisAdapter(SQLAdapter):
 
     @classmethod
     def quote(cls, identifier):
-        return "`{}`".format(identifier)
+        return "`{}`".format(str(identifier).replace("`", "``"))
 
     def check_schema_exists(self, database, schema):
         results = self.execute_macro(LIST_SCHEMAS_MACRO_NAME, kwargs={"database": database})
@@ -357,16 +357,17 @@ class DorisAdapter(SQLAdapter):
         return exists
 
     def get_relation(self, database: Optional[str], schema: str, identifier: str):
-        return super().get_relation(None, schema, identifier)
+        return super().get_relation(database, schema, identifier)
 
     def drop_schema(self, relation: BaseRelation):
+        schema_relation = relation
         relations = self.list_relations(
             database=relation.database,
             schema=relation.schema
         )
         for relation in relations:
             self.drop_relation(relation)
-        super().drop_schema(relation)
+        super().drop_schema(schema_relation)
 
     def list_relations_without_caching(self, schema_relation: DorisRelation) -> List[DorisRelation]:
         if not self.check_schema_exists(
@@ -385,7 +386,7 @@ class DorisAdapter(SQLAdapter):
                     f"Invalid value from 'show table extended ...', "
                     f"got {len(row)} values, expected 4"
                 )
-            _database, name, schema, type_info = row
+            database, name, schema, type_info = row
             normalized_type = type_info.lower()
             if normalized_type == RelationType.MaterializedView.value:
                 rel_type = RelationType.MaterializedView
@@ -394,7 +395,7 @@ class DorisAdapter(SQLAdapter):
             else:
                 rel_type = RelationType.Table
             relation = self.Relation.create(
-                database=None,
+                database=database,
                 schema=schema,
                 identifier=name,
                 type=rel_type,
@@ -405,7 +406,7 @@ class DorisAdapter(SQLAdapter):
 
     @classmethod
     def _catalog_filter_table(
-            cls, table: agate.Table, used_schemas: FrozenSet[Tuple[str, str]]
+            cls, table: agate.Table, used_schemas: FrozenSet[Tuple[Optional[str], str]]
     ) -> agate.Table:
         table = table_from_rows(
             table.rows,
@@ -426,29 +427,28 @@ class DorisAdapter(SQLAdapter):
 
     @staticmethod
     def _catalog_filter_schemas(
-            used_schemas: FrozenSet[Tuple[str, str]]
+            used_schemas: FrozenSet[Tuple[Optional[str], str]]
     ):
-        schemas = frozenset(((d or ""), s.lower()) for d, s in used_schemas)
+        schemas = frozenset(
+            (d.lower() if d else None, s.lower())
+            for d, s in used_schemas
+            if s is not None
+        )
 
         def predicate(row: agate.Row) -> bool:
-            table_database = row.get("table_database") or ""
+            table_database = row.get("table_database")
             table_schema = row.get("table_schema")
             if table_schema is None:
                 return False
-            return (table_database, table_schema.lower()) in schemas
+            normalized_database = (
+                table_database.lower() if table_database else None
+            )
+            return (normalized_database, table_schema.lower()) in schemas
 
         return predicate
 
     def get_filtered_catalog(self, relation_configs, used_schemas, relations=None):
-        """Match dbt's empty database name to Doris' single namespace.
-
-        ``DorisRelation`` normalizes database to ``None`` because Doris has no
-        catalog level between a connection and a database/schema. Manifest
-        nodes, however, carry ``database=''``. dbt Core's selected-relation
-        filter treats those as different keys and removes every catalog row.
-        Apply the same filter with both representations normalized to the empty
-        string, which is also the value returned by ``doris__get_catalog``.
-        """
+        """Normalize omitted Internal Catalog names before filtering rows."""
         catalogs, exceptions = super().get_filtered_catalog(
             relation_configs,
             used_schemas,
