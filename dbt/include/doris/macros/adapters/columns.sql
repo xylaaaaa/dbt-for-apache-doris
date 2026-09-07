@@ -17,6 +17,11 @@
 
 {% macro doris__get_columns_in_relation(relation) -%}
     {% set catalog = relation.database or 'internal' %}
+    {% set identifier = (
+        relation.identifier
+        | replace("\\", "\\\\")
+        | replace("'", "\\'")
+    ) %}
     {% set information_schema_name = (
         adapter.quote(catalog) ~ '.information_schema'
         if relation.database else 'information_schema'
@@ -30,7 +35,7 @@
         from {{ information_schema_name }}.columns
         where upper(table_catalog) = upper('{{ catalog | replace("'", "''") }}')
           and table_schema = '{{ relation.schema | replace("\\", "\\\\") | replace("'", "\\'") }}'
-          and table_name = '{{ relation.identifier }}'
+          and table_name = '{{ identifier }}'
         order by ordinal_position
     {% endcall %}
     {% set table = load_result('get_columns_in_relation').table %}
